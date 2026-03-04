@@ -21,6 +21,8 @@ SnaKt is a Kotlin compiler plugin that translates Kotlin code into [Viper](https
 15. [Working with Lists](#working-with-lists)
 16. [SMT Solver Triggers](#smt-solver-triggers)
 17. [Advanced: Manual Permission Annotation](#advanced-manual-permission-annotation)
+18. [Verifier Reference](#verifier-reference)
+19. [File-Level Directives](#file-level-directives)
 
 ---
 
@@ -846,6 +848,130 @@ fun writeField(mpf: ManualPermissionFields) {
 ```
 
 Files using `@Manual` typically include `// NEVER_VALIDATE` at the top, since the manual heap model is not checked end-to-end.
+
+---
+
+## Verifier Reference
+
+### Verification pipeline
+
+The verifier runs as part of the Kotlin compiler's FIR analysis phase. For each function in scope the plugin performs these steps in order:
+
+1. **Convert** — translate the function body to a Viper program. Skipped if the function is excluded by `@NeverConvert` or by `conversionTargetsSelection`.
+2. **Consistency-check** — verify that the generated Viper program is internally consistent. A failure here is always a plugin bug and produces an `INTERNAL_ERROR` diagnostic. Verification is skipped when the consistency check fails.
+3. **Verify** — submit the Viper program to Silicon (the SMT-backed Viper verifier). Skipped if the function is excluded by `@NeverVerify` or by `verificationTargetsSelection`.
+
+### What triggers verification
+
+By default (`TARGETS_WITH_CONTRACT`) only functions that carry a Kotlin `contract { }` block are converted and verified. Per-function annotations override the project-level selection:
+
+| Condition | Converted | Verified |
+| --- | --- | --- |
+| Default (`TARGETS_WITH_CONTRACT`) | Functions with a `contract { }` block | Same scope as conversion |
+| `@NeverConvert` | No | No |
+| `@NeverVerify` | Yes | No |
+| `@AlwaysVerify` | Yes | Always |
+
+### Project-level configuration
+
+The plugin is configured through the `formver { }` Gradle extension in your `build.gradle.kts`:
+
+```kotlin
+formver {
+    conversionTargetsSelection("targets_with_contract")  // default
+    verificationTargetsSelection("targets_with_contract") // default
+    errorStyle("user_friendly")                          // default
+    logLevel("only_warnings")                            // default
+    unsupportedFeatureBehaviour("throw_exception")       // default
+}
+```
+
+#### `conversionTargetsSelection` and `verificationTargetsSelection`
+
+Control which functions enter the conversion and verification stages respectively. `conversionTargetsSelection` must be at least as broad as `verificationTargetsSelection` (you cannot verify what has not been converted).
+
+| Value | Functions in scope |
+| --- | --- |
+| `targets_with_contract` _(default)_ | Functions with a Kotlin `contract { }` block |
+| `all_targets` | Every function in the module |
+| `no_targets` | None (effectively disables the stage) |
+
+`@AlwaysVerify` and `@NeverVerify` always override these settings for individual functions.
+
+#### `errorStyle`
+
+Controls how Viper verification failures are reported. Has no effect on `INTERNAL_ERROR`, `PURITY_VIOLATION`, or `UNIQUENESS_VIOLATION` diagnostics.
+
+| Value | Effect |
+| --- | --- |
+| `user_friendly` _(default)_ | Translates Viper errors to high-level Kotlin diagnostics where possible; falls back to the raw Viper message when no translation is available |
+| `original_viper` | Always shows the raw Viper error message |
+| `both` | Shows both the translated message (when available) and the raw Viper message |
+
+#### `logLevel`
+
+Controls whether the generated Viper code is emitted as compiler info diagnostics. Useful for debugging conversion problems or inspecting what the plugin produces.
+
+| Value | Effect |
+| --- | --- |
+| `only_warnings` _(default)_ | No Viper output emitted |
+| `short_viper_dump` | Emits the Viper program for each converted function, without predicate definitions |
+| `short_viper_dump_with_predicates` | Emits the Viper program including predicate definitions |
+| `full_viper_dump` | Emits the complete Viper program |
+
+The `// RENDER_PREDICATES` file-level directive achieves the same effect as `short_viper_dump_with_predicates` for a single file (see [File-Level Directives](#file-level-directives)).
+
+#### `unsupportedFeatureBehaviour`
+
+Controls what happens when the plugin encounters a Kotlin construct it cannot yet convert.
+
+| Value | Effect |
+| --- | --- |
+| `throw_exception` _(default)_ | Aborts conversion of the function and reports an `INTERNAL_ERROR` |
+| `assume_unreachable` | Treats the unsupported construct as unreachable and continues conversion |
+
+### Diagnostics reference
+
+All diagnostics are issued at the function declaration or the specific expression that caused the issue.
+
+#### Verification failures (warnings)
+
+These are emitted when Silicon cannot prove a property. They are **warnings**, not errors, so compilation still succeeds.
+
+| Diagnostic | Message template | Cause |
+| --- | --- | --- |
+| `VIPER_VERIFICATION_ERROR` | `Viper verification error: <msg>` | Generic verification failure; shown when `errorStyle` is `original_viper` or `both`, or when no user-friendly translation exists |
+| `UNEXPECTED_RETURNED_VALUE` | `Function may return a <type> value.` | A `contract { returns(x) }` effect cannot be guaranteed — the function may return a different value |
+| `CONDITIONAL_EFFECT_ERROR` | `Cannot verify that if <condition> then <effect>.` | A `contract { returns(x) implies (cond) }` effect cannot be guaranteed |
+| `POSSIBLE_INDEX_OUT_OF_BOUND` | `Invalid index for <list>, the index may be <bound>.` | A list or string access where the index may be out of range |
+| `INVALID_SUBLIST_RANGE` | `Invalid sub-list range for <list>, the range may be <bound>.` | A sub-list creation where the range bounds may be invalid |
+
+#### Specification errors (errors)
+
+These are emitted for incorrect use of the annotation API and prevent compilation.
+
+| Diagnostic | Message template | Cause |
+| --- | --- | --- |
+| `PURITY_VIOLATION` | _(message varies)_ | A non-pure call inside a `@Pure` function or inside a specification block (`preconditions`, `postconditions`, `loopInvariants`, `verify()`) |
+| `UNIQUENESS_VIOLATION` | _(message varies)_ | A violation of ownership rules: consuming a `@Borrowed` value, using a value after it has been moved, or violating `@Unique` constraints |
+
+#### Plugin errors (errors)
+
+These indicate a bug in the plugin or an unsupported feature. Please report them.
+
+| Diagnostic | Message template | Cause |
+| --- | --- | --- |
+| `INTERNAL_ERROR` | `An internal error has occurred. Details: <msg>` | Viper consistency check failure, unhandled exception during conversion, or an unsupported feature encountered with `throw_exception` behaviour |
+| `MINOR_INTERNAL_ERROR` | `Formal verification non-fatal internal error: <msg>` | A non-fatal issue during conversion that did not abort the function |
+
+#### Informational output (info)
+
+These are emitted only when the corresponding option is enabled and carry no diagnostic severity.
+
+| Diagnostic | Message template | When emitted |
+| --- | --- | --- |
+| `VIPER_TEXT` | `Generated Viper text for <function>: <viper>` | `logLevel` is not `only_warnings` |
+| `EXP_EMBEDDING` | `Generated ExpEmbedding for <function>: <embedding>` | The function carries `@DumpExpEmbeddings` |
 
 ---
 

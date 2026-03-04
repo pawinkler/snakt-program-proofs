@@ -37,4 +37,5 @@ kotlin {
 }
 
 formver {
+    logLevel("full_viper_dump")
 }
