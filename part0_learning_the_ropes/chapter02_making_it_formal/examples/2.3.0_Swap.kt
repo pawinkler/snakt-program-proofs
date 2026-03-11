@@ -1,6 +1,5 @@
 package chapter02_making_it_formal.examples
 
-import org.jetbrains.kotlin.formver.plugin.AlwaysVerify
 import org.jetbrains.kotlin.formver.plugin.NeverVerify
 import org.jetbrains.kotlin.formver.plugin.verify
 
@@ -12,7 +11,6 @@ import org.jetbrains.kotlin.formver.plugin.verify
 //     y := tmp;
 //     assert x == Y && y == X;
 //   }
-@AlwaysVerify
 fun swap(X: Int, Y: Int) {
     var x = X
     var y = Y
@@ -30,7 +28,6 @@ fun swap(X: Int, Y: Int) {
 //     x := y + x;
 //     assert x == Y && y == X;
 //   }
-@AlwaysVerify
 fun swapArithmetic(X: Int, Y: Int) {
     var x = X
     var y = Y
@@ -72,7 +69,6 @@ fun swapBitvectors(X: Int, Y: Int) {
 //
 // NOTE: Kotlin has no simultaneous assignment syntax. A temporary variable is used,
 // which is semantically equivalent.
-@AlwaysVerify
 fun swapSimultaneous(X: Int, Y: Int) {
     var x = X
     var y = Y

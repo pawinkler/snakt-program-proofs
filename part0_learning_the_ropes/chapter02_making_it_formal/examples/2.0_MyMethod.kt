@@ -1,6 +1,5 @@
 package chapter02_making_it_formal.examples
 
-import org.jetbrains.kotlin.formver.plugin.AlwaysVerify
 import org.jetbrains.kotlin.formver.plugin.preconditions
 import org.jetbrains.kotlin.formver.plugin.postconditions
 
@@ -18,7 +17,6 @@ import org.jetbrains.kotlin.formver.plugin.postconditions
 //     }
 //     y := a + b;
 //   }
-@AlwaysVerify
 fun myMethod(x: Int): Int {
     preconditions { 10 <= x }
     postconditions<Int> { 25 <= it }

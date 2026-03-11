@@ -38,4 +38,6 @@ kotlin {
 
 formver {
     logLevel("full_viper_dump")
+    conversionTargetsSelection("all_targets")
+    verificationTargetsSelection("all_targets")
 }

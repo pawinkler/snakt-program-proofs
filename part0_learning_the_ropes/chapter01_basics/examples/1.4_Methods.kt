@@ -1,6 +1,5 @@
 package chapter01_basics.examples
 
-import org.jetbrains.kotlin.formver.plugin.AlwaysVerify
 import org.jetbrains.kotlin.formver.plugin.postconditions
 import org.jetbrains.kotlin.formver.plugin.preconditions
 import org.jetbrains.kotlin.formver.plugin.verify
@@ -12,7 +11,6 @@ import org.jetbrains.kotlin.formver.plugin.verify
 //     var y := 2 * x;
 //     r := x + y;
 //   }
-@AlwaysVerify
 fun triple4(x: Int): Int {
     postconditions<Int> { it == 3 * x }
     val y = 2 * x
@@ -24,7 +22,6 @@ fun triple4(x: Int): Int {
 //     var t := Triple(18);
 //     assert t < 100;
 //   }
-@AlwaysVerify
 fun caller() {
     val t = triple4(18)
     verify(t < 100)  // provable: postcondition gives t == 54
@@ -37,7 +34,6 @@ fun caller() {
 //   {
 //     i := n / 2;
 //   }
-@AlwaysVerify
 fun index(n: Int): Int {
     preconditions { 1 <= n }
     postconditions<Int> { 0 <= it && it < n }
@@ -51,7 +47,6 @@ fun index(n: Int): Int {
 //   {
 //     i := 0;
 //   }
-@AlwaysVerify
 fun index2(n: Int): Int {
     preconditions { 1 <= n }
     postconditions<Int> { 0 <= it && it < n }
@@ -62,7 +57,6 @@ fun index2(n: Int): Int {
 //   method Min(x: int, y: int) returns (m: int)
 //     ensures m <= x && m <= y
 //     ensures m == x || m == y
-@AlwaysVerify
 fun min4(x: Int, y: Int): Int {
     postconditions<Int> {
         it <= x && it <= y

@@ -2,3 +2,4 @@ program_proofs_book.pdf
 TRANSLATION_GAPS.md
 .gradle/
 build/
+gradle.properties
